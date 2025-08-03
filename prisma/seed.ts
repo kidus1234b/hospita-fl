@@ -1,13 +1,13 @@
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, UserRole } from "@prisma/client"
 import bcrypt from "bcryptjs"
 
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log("🌱 Seeding database...")
+  console.log("🌱 Starting database seed...")
 
   // Hash password for all demo users
-  const hashedPassword = await bcrypt.hash("password123", 12)
+  const hashedPassword = await bcrypt.hash("password123", 10)
 
   // Create staff members
   const staff = await Promise.all([
@@ -17,10 +17,11 @@ async function main() {
       create: {
         email: "admin@medsync.com",
         password: hashedPassword,
-        fullName: "Dr. Sarah Johnson",
-        role: "admin",
+        fullName: "System Administrator",
+        role: UserRole.admin,
         department: "Administration",
-        phone: "+1-555-0101",
+        phone: "+1-555-0001",
+        isActive: true,
       },
     }),
     prisma.staff.upsert({
@@ -29,10 +30,11 @@ async function main() {
       create: {
         email: "doctor1@medsync.com",
         password: hashedPassword,
-        fullName: "Dr. Michael Chen",
-        role: "doctor",
+        fullName: "Dr. Sarah Johnson",
+        role: UserRole.doctor,
         department: "Cardiology",
-        phone: "+1-555-0102",
+        phone: "+1-555-0002",
+        isActive: true,
       },
     }),
     prisma.staff.upsert({
@@ -41,10 +43,11 @@ async function main() {
       create: {
         email: "doctor2@medsync.com",
         password: hashedPassword,
-        fullName: "Dr. Emily Rodriguez",
-        role: "doctor",
-        department: "Pediatrics",
-        phone: "+1-555-0103",
+        fullName: "Dr. Michael Chen",
+        role: UserRole.doctor,
+        department: "Neurology",
+        phone: "+1-555-0003",
+        isActive: true,
       },
     }),
     prisma.staff.upsert({
@@ -53,10 +56,11 @@ async function main() {
       create: {
         email: "receptionist@medsync.com",
         password: hashedPassword,
-        fullName: "Lisa Thompson",
-        role: "receptionist",
+        fullName: "Emily Davis",
+        role: UserRole.receptionist,
         department: "Front Desk",
-        phone: "+1-555-0104",
+        phone: "+1-555-0004",
+        isActive: true,
       },
     }),
     prisma.staff.upsert({
@@ -65,10 +69,11 @@ async function main() {
       create: {
         email: "pharmacist@medsync.com",
         password: hashedPassword,
-        fullName: "James Wilson",
-        role: "pharmacist",
+        fullName: "Robert Wilson",
+        role: UserRole.pharmacist,
         department: "Pharmacy",
-        phone: "+1-555-0105",
+        phone: "+1-555-0005",
+        isActive: true,
       },
     }),
     prisma.staff.upsert({
@@ -77,15 +82,16 @@ async function main() {
       create: {
         email: "lab@medsync.com",
         password: hashedPassword,
-        fullName: "Maria Garcia",
-        role: "lab_technician",
+        fullName: "Lisa Martinez",
+        role: UserRole.lab_technician,
         department: "Laboratory",
-        phone: "+1-555-0106",
+        phone: "+1-555-0006",
+        isActive: true,
       },
     }),
   ])
 
-  console.log("✅ Staff created:", staff.length)
+  console.log("👥 Created staff members:", staff.length)
 
   // Create sample patients
   const patients = await Promise.all([
@@ -100,7 +106,10 @@ async function main() {
         phone: "+1-555-1001",
         email: "john.smith@email.com",
         address: "123 Main St, City, State 12345",
+        emergencyContact: "Jane Smith",
+        emergencyPhone: "+1-555-1002",
         bloodGroup: "O+",
+        allergies: "Penicillin",
       },
     }),
     prisma.patient.upsert({
@@ -108,13 +117,16 @@ async function main() {
       update: {},
       create: {
         patientId: "P002",
-        fullName: "Emma Davis",
+        fullName: "Maria Garcia",
         dateOfBirth: new Date("1992-07-22"),
         gender: "Female",
-        phone: "+1-555-1002",
-        email: "emma.davis@email.com",
+        phone: "+1-555-1003",
+        email: "maria.garcia@email.com",
         address: "456 Oak Ave, City, State 12345",
+        emergencyContact: "Carlos Garcia",
+        emergencyPhone: "+1-555-1004",
         bloodGroup: "A+",
+        allergies: "None known",
       },
     }),
     prisma.patient.upsert({
@@ -122,66 +134,51 @@ async function main() {
       update: {},
       create: {
         patientId: "P003",
-        fullName: "Robert Johnson",
+        fullName: "David Brown",
         dateOfBirth: new Date("1978-11-08"),
         gender: "Male",
-        phone: "+1-555-1003",
-        email: "robert.j@email.com",
-        address: "789 Pine Rd, City, State 12345",
+        phone: "+1-555-1005",
+        email: "david.brown@email.com",
+        address: "789 Pine St, City, State 12345",
+        emergencyContact: "Susan Brown",
+        emergencyPhone: "+1-555-1006",
         bloodGroup: "B+",
-      },
-    }),
-    prisma.patient.upsert({
-      where: { patientId: "P004" },
-      update: {},
-      create: {
-        patientId: "P004",
-        fullName: "Sophie Wilson",
-        dateOfBirth: new Date("2010-05-12"),
-        gender: "Female",
-        phone: "+1-555-1004",
-        email: "sophie.parent@email.com",
-        address: "321 Elm St, City, State 12345",
-        bloodGroup: "AB+",
+        allergies: "Shellfish",
       },
     }),
   ])
 
-  console.log("✅ Patients created:", patients.length)
+  console.log("🏥 Created patients:", patients.length)
 
   // Create sample appointments
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-
-  const dayAfterTomorrow = new Date()
-  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2)
-
   const appointments = await Promise.all([
     prisma.appointment.create({
       data: {
         patientId: patients[0].id,
-        doctorId: staff[1].id, // Dr. Michael Chen
-        appointmentDate: tomorrow,
+        doctorId: staff[1].id, // Dr. Sarah Johnson
+        appointmentDate: new Date("2024-01-15"),
         appointmentTime: "09:00",
         department: "Cardiology",
-        reason: "Chest pain consultation",
+        reason: "Regular checkup",
+        status: "scheduled",
         createdById: staff[3].id, // Receptionist
       },
     }),
     prisma.appointment.create({
       data: {
         patientId: patients[1].id,
-        doctorId: staff[2].id, // Dr. Emily Rodriguez
-        appointmentDate: dayAfterTomorrow,
-        appointmentTime: "10:30",
-        department: "Pediatrics",
-        reason: "Regular checkup",
+        doctorId: staff[2].id, // Dr. Michael Chen
+        appointmentDate: new Date("2024-01-16"),
+        appointmentTime: "14:30",
+        department: "Neurology",
+        reason: "Headache consultation",
+        status: "scheduled",
         createdById: staff[3].id, // Receptionist
       },
     }),
   ])
 
-  console.log("✅ Appointments created:", appointments.length)
+  console.log("📅 Created appointments:", appointments.length)
 
   // Create sample inventory
   const inventory = await Promise.all([
@@ -190,7 +187,7 @@ async function main() {
         medicationName: "Aspirin 100mg",
         batchNumber: "ASP001",
         quantity: 500,
-        unitPrice: 0.5,
+        unitPrice: 0.25,
         expiryDate: new Date("2025-12-31"),
         supplier: "PharmaCorp",
         minimumStock: 50,
@@ -198,49 +195,39 @@ async function main() {
     }),
     prisma.inventory.create({
       data: {
-        medicationName: "Amoxicillin 500mg",
-        batchNumber: "AMX001",
-        quantity: 200,
-        unitPrice: 2.5,
-        expiryDate: new Date("2025-06-30"),
+        medicationName: "Ibuprofen 200mg",
+        batchNumber: "IBU001",
+        quantity: 300,
+        unitPrice: 0.35,
+        expiryDate: new Date("2025-08-15"),
         supplier: "MediSupply",
-        minimumStock: 25,
-      },
-    }),
-    prisma.inventory.create({
-      data: {
-        medicationName: "Lisinopril 10mg",
-        batchNumber: "LIS001",
-        quantity: 150,
-        unitPrice: 1.75,
-        expiryDate: new Date("2025-09-15"),
-        supplier: "PharmaCorp",
         minimumStock: 30,
       },
     }),
     prisma.inventory.create({
       data: {
-        medicationName: "Metformin 500mg",
-        batchNumber: "MET001",
-        quantity: 300,
+        medicationName: "Amoxicillin 500mg",
+        batchNumber: "AMX001",
+        quantity: 150,
         unitPrice: 1.25,
-        expiryDate: new Date("2025-11-20"),
-        supplier: "HealthMeds",
-        minimumStock: 40,
+        expiryDate: new Date("2024-06-30"),
+        supplier: "PharmaCorp",
+        minimumStock: 25,
       },
     }),
   ])
 
-  console.log("✅ Inventory created:", inventory.length)
+  console.log("💊 Created inventory items:", inventory.length)
 
-  console.log("🎉 Database seeded successfully!")
+  console.log("✅ Database seed completed successfully!")
 }
 
 main()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
-  .finally(async () => {
+  .then(async () => {
     await prisma.$disconnect()
+  })
+  .catch(async (e) => {
+    console.error("❌ Seed failed:", e)
+    await prisma.$disconnect()
+    process.exit(1)
   })
