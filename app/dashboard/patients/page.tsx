@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,9 +17,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { supabase } from "@/lib/supabase"
-import { getCurrentStaff } from "@/lib/auth"
-import type { Patient, Staff } from "@/lib/supabase"
+import { db, type Patient, type Staff } from "@/lib/database"
 import { Plus, Search, Edit, Eye, Phone, Mail, Calendar, Users } from "lucide-react"
 
 export default function PatientsPage() {
@@ -34,29 +31,32 @@ export default function PatientsPage() {
 
   // Form state for new patient
   const [newPatient, setNewPatient] = useState({
-    patient_id: "",
-    full_name: "",
-    date_of_birth: "",
+    patientId: "",
+    fullName: "",
+    dateOfBirth: "",
     gender: "",
     phone: "",
     email: "",
     address: "",
-    emergency_contact: "",
-    emergency_phone: "",
-    blood_group: "",
+    emergencyContact: "",
+    emergencyPhone: "",
+    bloodGroup: "",
     allergies: "",
   })
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const currentStaff = await getCurrentStaff()
-        setStaff(currentStaff)
+        // Get current user from cookie
+        const response = await fetch("/api/auth/me")
+        if (response.ok) {
+          const { user } = await response.json()
+          setStaff(user)
+        }
 
-        const { data, error } = await supabase.from("patients").select("*").order("created_at", { ascending: false })
-
-        if (error) throw error
-        setPatients(data || [])
+        // Load patients from in-memory database
+        const allPatients = db.patient.findMany()
+        setPatients(allPatients)
       } catch (error) {
         console.error("Error loading patients:", error)
       } finally {
@@ -69,22 +69,23 @@ export default function PatientsPage() {
 
   const filteredPatients = patients.filter(
     (patient) =>
-      patient.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.patientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       patient.phone?.includes(searchTerm) ||
       patient.email?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const generatePatientId = () => {
-    const lastPatient = patients
-      .sort((a, b) => Number.parseInt(a.patient_id.substring(1)) - Number.parseInt(b.patient_id.substring(1)))
-      .pop()
+    const existingIds = patients.map((p) => p.patientId)
+    let nextNumber = 1
+    let newId = `P${String(nextNumber).padStart(3, "0")}`
 
-    if (lastPatient) {
-      const lastNumber = Number.parseInt(lastPatient.patient_id.substring(1))
-      return `P${String(lastNumber + 1).padStart(3, "0")}`
+    while (existingIds.includes(newId)) {
+      nextNumber++
+      newId = `P${String(nextNumber).padStart(3, "0")}`
     }
-    return "P001"
+
+    return newId
   }
 
   const handleAddPatient = async (e: React.FormEvent) => {
@@ -92,25 +93,26 @@ export default function PatientsPage() {
 
     try {
       const patientId = generatePatientId()
-      const { data, error } = await supabase
-        .from("patients")
-        .insert([{ ...newPatient, patient_id: patientId }])
-        .select()
+      const patientData = {
+        ...newPatient,
+        patientId,
+        dateOfBirth: newPatient.dateOfBirth ? new Date(newPatient.dateOfBirth) : null,
+      }
 
-      if (error) throw error
+      const createdPatient = db.patient.create(patientData)
+      setPatients([createdPatient, ...patients])
 
-      setPatients([data[0], ...patients])
       setNewPatient({
-        patient_id: "",
-        full_name: "",
-        date_of_birth: "",
+        patientId: "",
+        fullName: "",
+        dateOfBirth: "",
         gender: "",
         phone: "",
         email: "",
         address: "",
-        emergency_contact: "",
-        emergency_phone: "",
-        blood_group: "",
+        emergencyContact: "",
+        emergencyPhone: "",
+        bloodGroup: "",
         allergies: "",
       })
       setIsAddDialogOpen(false)
@@ -155,21 +157,21 @@ export default function PatientsPage() {
               <form onSubmit={handleAddPatient} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="full_name">Full Name *</Label>
+                    <Label htmlFor="fullName">Full Name *</Label>
                     <Input
-                      id="full_name"
-                      value={newPatient.full_name}
-                      onChange={(e) => setNewPatient({ ...newPatient, full_name: e.target.value })}
+                      id="fullName"
+                      value={newPatient.fullName}
+                      onChange={(e) => setNewPatient({ ...newPatient, fullName: e.target.value })}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="date_of_birth">Date of Birth</Label>
+                    <Label htmlFor="dateOfBirth">Date of Birth</Label>
                     <Input
-                      id="date_of_birth"
+                      id="dateOfBirth"
                       type="date"
-                      value={newPatient.date_of_birth}
-                      onChange={(e) => setNewPatient({ ...newPatient, date_of_birth: e.target.value })}
+                      value={newPatient.dateOfBirth}
+                      onChange={(e) => setNewPatient({ ...newPatient, dateOfBirth: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -189,10 +191,10 @@ export default function PatientsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="blood_group">Blood Group</Label>
+                    <Label htmlFor="bloodGroup">Blood Group</Label>
                     <Select
-                      value={newPatient.blood_group}
-                      onValueChange={(value) => setNewPatient({ ...newPatient, blood_group: value })}
+                      value={newPatient.bloodGroup}
+                      onValueChange={(value) => setNewPatient({ ...newPatient, bloodGroup: value })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select blood group" />
@@ -237,19 +239,19 @@ export default function PatientsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="emergency_contact">Emergency Contact</Label>
+                    <Label htmlFor="emergencyContact">Emergency Contact</Label>
                     <Input
-                      id="emergency_contact"
-                      value={newPatient.emergency_contact}
-                      onChange={(e) => setNewPatient({ ...newPatient, emergency_contact: e.target.value })}
+                      id="emergencyContact"
+                      value={newPatient.emergencyContact}
+                      onChange={(e) => setNewPatient({ ...newPatient, emergencyContact: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="emergency_phone">Emergency Phone</Label>
+                    <Label htmlFor="emergencyPhone">Emergency Phone</Label>
                     <Input
-                      id="emergency_phone"
-                      value={newPatient.emergency_phone}
-                      onChange={(e) => setNewPatient({ ...newPatient, emergency_phone: e.target.value })}
+                      id="emergencyPhone"
+                      value={newPatient.emergencyPhone}
+                      onChange={(e) => setNewPatient({ ...newPatient, emergencyPhone: e.target.value })}
                     />
                   </div>
                 </div>
@@ -293,17 +295,17 @@ export default function PatientsPage() {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center space-x-4 mb-2">
-                    <h3 className="text-lg font-semibold">{patient.full_name}</h3>
-                    <Badge variant="outline">{patient.patient_id}</Badge>
-                    {patient.blood_group && <Badge variant="secondary">{patient.blood_group}</Badge>}
+                    <h3 className="text-lg font-semibold">{patient.fullName}</h3>
+                    <Badge variant="outline">{patient.patientId}</Badge>
+                    {patient.bloodGroup && <Badge variant="secondary">{patient.bloodGroup}</Badge>}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
                     <div className="flex items-center space-x-2">
                       <Calendar className="h-4 w-4" />
                       <span>
-                        {patient.date_of_birth
-                          ? `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} years old`
+                        {patient.dateOfBirth
+                          ? `${new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear()} years old`
                           : "Age not specified"}
                       </span>
                     </div>
@@ -357,22 +359,22 @@ export default function PatientsPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Patient Details</DialogTitle>
-            <DialogDescription>Complete information for {selectedPatient?.full_name}</DialogDescription>
+            <DialogDescription>Complete information for {selectedPatient?.fullName}</DialogDescription>
           </DialogHeader>
           {selectedPatient && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="font-semibold">Patient ID</Label>
-                  <p>{selectedPatient.patient_id}</p>
+                  <p>{selectedPatient.patientId}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Full Name</Label>
-                  <p>{selectedPatient.full_name}</p>
+                  <p>{selectedPatient.fullName}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Date of Birth</Label>
-                  <p>{selectedPatient.date_of_birth || "Not specified"}</p>
+                  <p>{selectedPatient.dateOfBirth?.toLocaleDateString() || "Not specified"}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Gender</Label>
@@ -380,7 +382,7 @@ export default function PatientsPage() {
                 </div>
                 <div>
                   <Label className="font-semibold">Blood Group</Label>
-                  <p>{selectedPatient.blood_group || "Not specified"}</p>
+                  <p>{selectedPatient.bloodGroup || "Not specified"}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Phone</Label>
@@ -398,11 +400,11 @@ export default function PatientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="font-semibold">Emergency Contact</Label>
-                  <p>{selectedPatient.emergency_contact || "Not provided"}</p>
+                  <p>{selectedPatient.emergencyContact || "Not provided"}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Emergency Phone</Label>
-                  <p>{selectedPatient.emergency_phone || "Not provided"}</p>
+                  <p>{selectedPatient.emergencyPhone || "Not provided"}</p>
                 </div>
               </div>
               <div>
@@ -411,7 +413,7 @@ export default function PatientsPage() {
               </div>
               <div>
                 <Label className="font-semibold">Registered</Label>
-                <p>{new Date(selectedPatient.created_at).toLocaleDateString()}</p>
+                <p>{selectedPatient.createdAt.toLocaleDateString()}</p>
               </div>
             </div>
           )}

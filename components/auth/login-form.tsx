@@ -119,10 +119,10 @@ export function LoginForm() {
               </div>
             </div>
 
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm">
-              <p className="text-blue-800">
-                <strong>Local Database:</strong> This system now uses a local SQLite database. Run{" "}
-                <code className="bg-blue-100 px-1 rounded">npm run db:seed</code> to set up demo data.
+            <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
+              <p className="text-green-800">
+                <strong>Ready to use:</strong> This system uses an in-memory database with pre-loaded demo data. Just
+                login with any of the accounts above!
               </p>
             </div>
           </div>

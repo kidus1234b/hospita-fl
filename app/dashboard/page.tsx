@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getCurrentStaff } from "@/lib/auth"
-import { supabase } from "@/lib/supabase"
-import type { Staff } from "@/lib/supabase"
+import { db, type Staff } from "@/lib/database"
 import { Users, Calendar, FileText, Pill, TestTube, CreditCard, TrendingUp, Clock } from "lucide-react"
 
 interface DashboardStats {
@@ -31,32 +29,37 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        const currentStaff = await getCurrentStaff()
-        setStaff(currentStaff)
+        // Get current user from cookie
+        const response = await fetch("/api/auth/me")
+        if (response.ok) {
+          const { user } = await response.json()
+          setStaff(user)
+        }
 
         // Load dashboard statistics
-        const [patientsResult, appointmentsResult, prescriptionsResult, labTestsResult, billingResult, staffResult] =
-          await Promise.all([
-            supabase.from("patients").select("id", { count: "exact" }),
-            supabase
-              .from("appointments")
-              .select("id", { count: "exact" })
-              .eq("appointment_date", new Date().toISOString().split("T")[0]),
-            supabase.from("prescriptions").select("id", { count: "exact" }).eq("status", "pending"),
-            supabase.from("lab_tests").select("id", { count: "exact" }).in("status", ["requested", "in_progress"]),
-            supabase.from("billing").select("total_amount").eq("payment_status", "paid"),
-            supabase.from("staff").select("id", { count: "exact" }).eq("is_active", true),
-          ])
+        const patients = db.patient.findMany()
+        const appointments = db.appointment.findMany()
+        const prescriptions = db.prescription.findMany()
+        const labTests = db.labTest.findMany()
+        const billing = db.billing.findMany()
+        const allStaff = db.staff.findMany()
 
-        const totalRevenue = billingResult.data?.reduce((sum, bill) => sum + (bill.total_amount || 0), 0) || 0
+        const today = new Date().toISOString().split("T")[0]
+        const todayAppointments = appointments.filter((a) => a.appointmentDate.toISOString().split("T")[0] === today)
+
+        const pendingPrescriptions = prescriptions.filter((p) => p.status === "pending")
+        const pendingLabTests = labTests.filter((l) => l.status === "requested" || l.status === "in_progress")
+        const paidBilling = billing.filter((b) => b.paymentStatus === "paid")
+        const totalRevenue = paidBilling.reduce((sum, bill) => sum + bill.totalAmount, 0)
+        const activeStaff = allStaff.filter((s) => s.isActive)
 
         setStats({
-          totalPatients: patientsResult.count || 0,
-          todayAppointments: appointmentsResult.count || 0,
-          pendingPrescriptions: prescriptionsResult.count || 0,
-          pendingLabTests: labTestsResult.count || 0,
+          totalPatients: patients.length,
+          todayAppointments: todayAppointments.length,
+          pendingPrescriptions: pendingPrescriptions.length,
+          pendingLabTests: pendingLabTests.length,
           totalRevenue,
-          activeStaff: staffResult.count || 0,
+          activeStaff: activeStaff.length,
         })
       } catch (error) {
         console.error("Error loading dashboard data:", error)
@@ -71,7 +74,7 @@ export default function DashboardPage() {
   const getWelcomeMessage = () => {
     const hour = new Date().getHours()
     const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
-    return `${greeting}, ${staff?.full_name || "User"}!`
+    return `${greeting}, ${staff?.fullName || "User"}!`
   }
 
   const getRoleSpecificCards = () => {
@@ -221,7 +224,7 @@ export default function DashboardPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">{getWelcomeMessage()}</h1>
         <p className="text-gray-600 capitalize">
-          {staff?.role} - {staff?.department}
+          {staff?.role?.replace("_", " ")} - {staff?.department}
         </p>
       </div>
 

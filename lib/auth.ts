@@ -1,9 +1,10 @@
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
-import { prisma } from "./prisma"
-import type { Staff, UserRole } from "@prisma/client"
+import { db, type Staff, initializeDatabase } from "./database"
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production"
+
+export type UserRole = "admin" | "doctor" | "receptionist" | "pharmacist" | "lab_technician"
 
 export interface AuthUser {
   id: string
@@ -12,6 +13,9 @@ export interface AuthUser {
   role: UserRole
   department: string | null
 }
+
+// Initialize database on first import
+initializeDatabase()
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12)
@@ -34,9 +38,7 @@ export function verifyToken(token: string): AuthUser | null {
 }
 
 export async function signIn(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
-  const staff = await prisma.staff.findUnique({
-    where: { email },
-  })
+  const staff = db.staff.findUnique({ email })
 
   if (!staff || !staff.isActive) {
     throw new Error("Invalid login credentials")
@@ -64,9 +66,7 @@ export async function getCurrentStaff(token: string): Promise<Staff | null> {
   const user = verifyToken(token)
   if (!user) return null
 
-  return prisma.staff.findUnique({
-    where: { id: user.id },
-  })
+  return db.staff.findUnique({ id: user.id })
 }
 
 export function hasRole(userRole: UserRole, allowedRoles: UserRole[]): boolean {
